@@ -1,0 +1,163 @@
+# 教育智能客服 - 系统侧流程
+
+flows:
+  # ========== 任务启动通知 ==========
+  system_task_started:
+    name: 系统流程 - 任务启动
+    description: 当用户启动一个新任务时，通知用户任务已开始
+    steps:
+      - id: start
+        type: start
+        next: respond
+
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: rephrase
+          text: "好的，我来帮你处理{{ context.name }}。"
+          prompt: |
+            你是一个中文教育客服助手。
+            请基于建议回复，生成一句自然友好的回复，保持原意，不要扩写。
+            建议回复：{{ current_response }}
+            改写后的回复：
+        next: end
+
+      - id: end
+        type: end
+        next: []
+
+  # ========== 任务中断通知 ==========
+  system_task_interrupted:
+    name: 系统流程 - 任务中断
+    description: 当用户当前任务被新任务中断时，通知用户
+    steps:
+      - id: start
+        type: start
+        next: respond
+
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: rephrase
+          text: "好的，我先暂缓当前任务，帮你处理新的请求。"
+          prompt: |
+            你是一个中文教育客服助手。
+            请基于建议回复，生成一句自然友好的回复，保持原意，不要扩写。
+            建议回复：{{ current_response }}
+            改写后的回复：
+        next: end
+
+      - id: end
+        type: end
+        next: []
+
+  # ========== 任务取消通知 ==========
+  system_task_canceled:
+    name: 系统流程 - 任务取消
+    description: 用户取消当前任务时，确认取消
+    steps:
+      - id: start
+        type: start
+        next: respond
+
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: rephrase
+          text: "好的，已取消当前操作。如果你还需要其他帮助，请随时告诉我。"
+          prompt: |
+            你是一个中文教育客服助手。
+            请基于建议回复，生成一句自然友好的回复，保持原意，不要扩写。
+            建议回复：{{ current_response }}
+            改写后的回复：
+        next: end
+
+      - id: end
+        type: end
+        next: []
+
+  # ========== 任务恢复通知 ==========
+  system_task_resumed:
+    name: 系统流程 - 任务恢复
+    description: 恢复之前暂停的任务时，通知用户
+    steps:
+      - id: start
+        type: start
+        next: respond
+
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: rephrase
+          text: "好的，我们继续之前处理到一半的业务。"
+          prompt: |
+            你是一个中文教育客服助手。
+            请基于建议回复，生成一句自然友好的回复，保持原意，不要扩写。
+            建议回复：{{ current_response }}
+            改写后的回复：
+        next: end
+
+      - id: end
+        type: end
+        next: []
+
+  # ========== 信息收集流程 ==========
+  system_collect_information:
+    name: 系统流程 - 信息收集
+    description: 当用户需要提供信息时，用于收集所需的槽位数据
+    steps:
+      - id: start
+        type: start
+        next: listen
+
+      - id: listen
+        type: action
+        action: action_listen
+        next: end
+
+      - id: end
+        type: end
+        next: []
+
+  # ========== 无法处理 ==========
+  system_cannot_handle:
+    name: 系统流程 - 无法处理
+    description: 当系统无法理解或处理用户请求时的兜底处理
+    steps:
+      - id: start
+        type: start
+        next: respond
+
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          mode: rephrase
+          text: "抱歉，我暂时无法处理这个请求。你可以尝试查询课程信息、订单状态或学习进度。"
+          prompt: |
+            你是一个中文教育客服助手。
+            请基于建议回复，生成一句自然友好的回复，保持原意，不要扩写。
+            建议回复：{{ current_response }}
+            改写后的回复：
+        next: end
+
+      - id: end
+        type: end
+        next: []
+
+  # ========== 流程完成 ==========
+  system_completed:
+    name: 系统流程 - 完成
+    description: 流程完成标记
+    steps:
+      - id: start
+        type: start
+        next: end
+
+      - id: end
+        type: end
+        next: []
