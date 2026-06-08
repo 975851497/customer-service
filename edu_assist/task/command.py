@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from edu_assist.domain.state import DialogueState, SYSTEM_CANCELED, SYSTEM_TASK_RESUMED, SYSTEM_TASK_STARTED
+from edu_assist.domain.state import DialogueState, SYSTEM_TASK_CANCELED, SYSTEM_TASK_RESUMED, SYSTEM_TASK_STARTED
 
 
 @dataclass
@@ -57,7 +57,7 @@ class CommandProcessor:
 
             elif isinstance(cmd, CancelFlowCommand):
                 state.cancel_active_task()
-                state.start_system_task(SYSTEM_CANCELED)
+                state.start_system_task(SYSTEM_TASK_CANCELED)
 
             elif isinstance(cmd, ResumeFlowCommand):
                 if state.active_task and state.active_task.flow_id != cmd.flow_id:

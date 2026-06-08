@@ -40,7 +40,7 @@ def load_flows(yaml_path: str | Path) -> FlowsList:
                 slot_name = step["slot_name"]
                 if slot_name not in flow_slot_names and slot_name in slots:
                     flow_slot_names.add(slot_name)
-                    flow_slots.append(FlowSlot(name=slot_name, **slots[slot_name]))
+                    flow_slots.append(FlowSlot(**slots[slot_name]))
 
         flows[flow_id] = Flow(
             id=flow_id,

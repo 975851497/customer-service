@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from langchain_openai import ChatOpenAI
-from langchain.schema import BaseMessage
 
 from edu_assist.conf.config import settings
 
@@ -28,11 +27,4 @@ async def llm_ainvoke(prompt: str) -> str:
     """调用 LLM 并返回文本结果。"""
     llm = get_llm()
     result = await llm.ainvoke(prompt)
-    return result.content
-
-
-async def llm_ainvoke_with_messages(messages: list[BaseMessage]) -> str:
-    """使用消息列表调用 LLM。"""
-    llm = get_llm()
-    result = await llm.ainvoke(messages)
     return result.content
