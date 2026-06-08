@@ -1,21 +1,25 @@
+# 使用官方 Python 轻量级镜像
 FROM python:3.12-slim
 
-# 安装系统依赖（MySQL 客户端用于健康检查，uv 包管理器）
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends default-mysql-client && \
-    rm -rf /var/lib/apt/lists/* && \
-    pip install --no-cache-dir uv
-
+# 设置工作目录
 WORKDIR /app
 
-# 复制依赖文件并安装（利用 Docker 缓存）
-COPY pyproject.toml uv.lock /app/
+# 安装 uv（使用国内镜像加速）
+RUN pip install uv -i https://mirrors.aliyun.com/pypi/simple/
+
+ENV UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+
+# 先复制依赖文件，利用 Docker 缓存机制加速构建
+COPY pyproject.toml uv.lock ./
+
+# 同步依赖（不安装开发环境依赖）
 RUN uv sync --frozen --no-dev
 
-# 复制项目源码及启动脚本
-COPY . /app
-RUN chmod +x /app/entrypoint.sh
+# 复制项目的所有代码到容器中
+COPY . .
 
+# 暴露服务端口
 EXPOSE 8000
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+# 启动服务
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
