@@ -1,4 +1,4 @@
-"""任务处理器。"""
+"""任务处理器，处理 task 赛道的消息。"""
 
 from __future__ import annotations
 
@@ -21,14 +21,16 @@ class TaskHandler:
         """处理 task 命令并执行流程。"""
         await self._command_processor.run(commands, state)
 
-        # 执行系统流程
-        system_messages: list[BotMessage] = []
-        if state.active_system_task and state.active_system_task.flow_id.startswith("system_"):
-            system_messages = await self._flow_executor.run_task(state)
+        messages: list[BotMessage] = []
 
-        # 执行用户流程
-        task_messages: list[BotMessage] = []
+        # 先执行系统流程（如任务启动通知、信息收集等）
+        if state.active_system_task:
+            system_msgs = await self._flow_executor.run_task(state, task=state.active_system_task)
+            messages.extend(system_msgs)
+
+        # 再执行用户流程
         if state.active_task:
-            task_messages = await self._flow_executor.run_task(state)
+            task_msgs = await self._flow_executor.run_task(state, task=state.active_task)
+            messages.extend(task_msgs)
 
-        return system_messages + task_messages
+        return messages

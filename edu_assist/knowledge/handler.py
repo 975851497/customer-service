@@ -36,6 +36,15 @@ class KnowledgeHandler:
 
         knowledge_content = "\n".join(chunks) if chunks else "暂无相关信息。"
 
+        # 调试日志
+        print(f"\n=== KNOWLEDGE ===")
+        print(f"Intents: {intents}")
+        print(f"Provider IDs: {provider_ids}")
+        print(f"Chunks count: {len(chunks)}")
+        if chunks:
+            print(f"First chunk: {chunks[0][:200]}")
+        print(f"=================\n")
+
         # 生成回复
         try:
             history = HistoryBuilder.build(state)

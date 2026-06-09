@@ -171,10 +171,12 @@ async def fetch_my_orders(user_id: int, status: str | None = None) -> list[dict[
             headers={"X-User-Id": str(user_id)},
         )
         data = resp.json()
+        print(f"\n[fetch_my_orders] user_id={user_id}, status={resp.status_code}, code={data.get('code')}, total={data.get('data',{}).get('total', 'N/A')}")
         if data.get("code") == 0:
             return data.get("data", {}).get("list", [])
         return []
-    except Exception:
+    except Exception as e:
+        print(f"[fetch_my_orders] error: {e}")
         return []
 
 

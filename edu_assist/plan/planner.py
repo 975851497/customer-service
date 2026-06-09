@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from edu_assist.infrastructure.llm import llm_ainvoke
 from edu_assist.prompts.prompt_loader import load_prompt
 from edu_assist.prompts.history_builder import HistoryBuilder
+from edu_assist.domain.state import SYSTEM_COLLECT_INFORMATION
 
 
 class TaskTurnPlan(BaseModel):
@@ -53,10 +54,15 @@ class TurnPlanner:
         focused_object_info = ""
 
         if state.active_task:
+            collecting = ""
+            if state.active_system_task and state.active_system_task.flow_id == SYSTEM_COLLECT_INFORMATION:
+                collecting = state.active_system_task.context.get("slot_name", "")
             active_task_info = json.dumps({
                 "flow_id": state.active_task.flow_id,
                 "name": state.active_task.name,
+                "current_step": state.active_task.step_id,
                 "slots": state.active_task.slots,
+                "collecting_slot": collecting,
             }, ensure_ascii=False)
 
         if state.paused_tasks:

@@ -37,6 +37,7 @@ class LookupOrderAction(Action):
 
         # 从 sender_id 解析 user_id
         user_id = self._extract_user_id(state.sender_id)
+        print(f"\n[LookupOrder] order_number='{order_number}', user_id={user_id}")
 
         # 策略 1：如果输入纯数字，尝试直接作为 orderId 查询
         if order_number.isdigit():
@@ -50,14 +51,19 @@ class LookupOrderAction(Action):
         # 策略 2：获取用户的订单列表，按 orderNo 模糊匹配
         try:
             orders = await fetch_my_orders(user_id)
+            print(f"[LookupOrder] fetched {len(orders)} orders")
             matched_order = None
             for order in orders:
-                if order_number in order.get("orderNo", ""):
+                order_no = order.get("orderNo", "")
+                match = order_number in order_no
+                print(f"[LookupOrder]  compare: '{order_number}' in '{order_no}' -> {match}")
+                if match:
                     matched_order = order
                     break
 
             if matched_order:
                 order_id = matched_order.get("orderId")
+                print(f"[LookupOrder] matched orderId={order_id}")
                 if order_id:
                     detail = await fetch_order_detail(order_id, user_id)
                     if detail:
@@ -65,7 +71,8 @@ class LookupOrderAction(Action):
 
                 # 兜底：直接用列表数据
                 return self._build_response_from_list(matched_order)
-        except Exception:
+        except Exception as e:
+            print(f"[LookupOrder] error: {e}")
             pass
 
         return ActionResult(
@@ -125,4 +132,6 @@ class LookupOrderAction(Action):
         parts = sender_id.split("_")
         if len(parts) > 1 and parts[-1].isdigit():
             return int(parts[-1])
+        if sender_id.isdigit():
+            return int(sender_id)
         return 1

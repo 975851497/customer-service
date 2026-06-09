@@ -6,7 +6,14 @@
       "Bash(uv run python -c ':*)",
       "Bash(find edu_assist -name \"__init__.py\" -exec echo \"=== {} ===\" \\\\; -exec cat {} \\\\;)",
       "Bash(python -c ':*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(python:*)",
+      "Bash(curl.exe -s -H \"X-User-Id: 161\" \"http://192.168.200.128:8000/api/v1/me/cohorts\")",
+      "Bash(curl.exe -s -H \"X-User-Id: 161\" \"http://192.168.200.128:8000/api/v1/me/cohorts/801/progress\")",
+      "Bash(curl.exe -s -X POST -H \"Content-Type: application/json\" -H \"X-User-Id: 161\" -d \"{\\\\\"refundType\\\\\":\\\\\"course_unsatisfied\\\\\",\\\\\"refundReason\\\\\":\\\\\"课程内容与描述不符，对课程不满意\\\\\",\\\\\"applyAmount\\\\\":2999}\" \"http://192.168.200.128:8000/api/v1/order-items/534/refund-requests\")",
+      "Bash(curl.exe -s -X POST \"http://192.168.200.128:8000/api/v1/order-items/534/refund-requests\" -H \"Content-Type: application/json\" -H \"X-User-Id: 161\" --data \"{\\\\\"refundType\\\\\":\\\\\"course_unsatisfied\\\\\",\\\\\"refundReason\\\\\":\\\\\"test\\\\\",\\\\\"applyAmount\\\\\":2999}\")"
     ]
   }
 }

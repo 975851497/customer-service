@@ -24,7 +24,7 @@
 请分析用户消息，输出一个 JSON 规划结果。你只能选择以下一种策略：
 
 ## 策略 1: task - 执行任务流程
-适用于：用户需要启动一个新流程、继续当前流程、取消或恢复流程。
+适用于：用户需要启动一个新流程、在当前流程中提供信息、取消或恢复流程。
 ```json
 {
   "task": {
@@ -39,10 +39,35 @@
 }
 ```
 命令类型说明：
-- start_flow: 启动新流程。当用户消息匹配一个业务意图时使用。
+- start_flow: **启动新流程**。当用户消息匹配一个业务意图时应始终使用此命令，即使已存在活跃任务（系统会自动中断切换）。
 - set_slots: 设置当前任务的槽位值。当用户在流程中提供了缺失信息时使用。示例：{"type": "set_slots", "slots": {"slot_name": "value"}}
 - cancel_flow: 取消当前流程。
-- resume_flow: 恢复之前暂停的流程。需要提供 flow_id。
+- resume_flow: **仅当用户明确要求恢复之前暂停的流程时使用**（例如"继续之前的订单查询"），不要用它来启动新流程。
+
+## 重要：提取槽位值
+如果用户发起的 task 流程需要收集槽位（如 order_number、series_name 等），且用户消息中已包含该信息，则必须在 start_flow 之前或同时使用 set_slots 命令预先填充。
+例如，用户说"帮我查下订单 ORD123"，你应该输出：
+```json
+{
+  "task": {
+    "commands": [
+      {"type": "start_flow", "flow_id": "order_status_query", "flow_name": "订单查询"},
+      {"type": "set_slots", "slots": {"order_number": "ORD123"}}
+    ]
+  }
+}
+```
+例如，用户说"Python 全栈课程是什么情况"，你应该输出：
+```json
+{
+  "task": {
+    "commands": [
+      {"type": "start_flow", "flow_id": "course_consultation", "flow_name": "课程咨询"},
+      {"type": "set_slots", "slots": {"series_name": "Python 全栈"}}
+    ]
+  }
+}
+```
 
 ## 策略 2: knowledge - 知识问答
 适用于：用户想了解课程信息、班次信息、平台规则等知识性内容。
@@ -62,11 +87,12 @@
 }
 ```
 
-## 重要规则
-1. 如果用户在当前流程中提供了缺失的信息（如订单号、班次名称等），请使用 set_slots 命令
-2. 如果用户想同时做多件事，选择最紧急或最先提到的一件
-3. 如果用户想取消当前操作，使用 cancel_flow
-4. 如果用户想回到之前的操作，使用 resume_flow
-5. 问候和感谢等社交对话选择 chitchat
+## 重要规则（优先级从高到低）
+1. **如果当前有活跃任务且 active_task 的 collecting_slot 不为空，必须优先使用 set_slots 命令填充 collecting_slot 指定的槽位**，而不是启动新流程或填充其他槽位。只有当用户明确要求做别的事情时才中断当前任务。
+2. 如果用户在当前流程中提供了缺失的信息（如订单号、班次名称等），请使用 set_slots 命令
+3. 如果用户想同时做多件事，选择最紧急或最先提到的一件
+4. 如果用户想取消当前操作，使用 cancel_flow
+5. 如果用户想回到之前的操作，使用 resume_flow
+6. 问候和感谢等社交对话选择 chitchat
 
 请只输出 JSON，不要包含其他内容。

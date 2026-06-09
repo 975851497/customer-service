@@ -16,6 +16,16 @@ REFUND_TYPE_MAP = {
     "duplicate_purchase": "重复购买",
 }
 
+# 反向映射：中文描述 → 代码值
+_REFUND_TYPE_REVERSE = {v: k for k, v in REFUND_TYPE_MAP.items()}
+
+
+def _normalize_refund_type(refund_type: str) -> str:
+    """将退款类型统一为代码值。"""
+    if refund_type in REFUND_TYPE_MAP:
+        return refund_type  # 已经是代码值
+    return _REFUND_TYPE_REVERSE.get(refund_type, "personal_reason")
+
 
 class CreateRefundAction(Action):
     """创建退款申请。"""
@@ -24,7 +34,7 @@ class CreateRefundAction(Action):
     async def run(self, state: Any, action_kwargs: dict[str, Any]) -> ActionResult:
         order_number = action_kwargs.get("order_number", "")
         reason = action_kwargs.get("refund_reason", "")
-        refund_type = action_kwargs.get("refund_type", "personal_reason")
+        refund_type = _normalize_refund_type(action_kwargs.get("refund_type", "personal_reason"))
 
         if not order_number or not reason:
             return ActionResult(
@@ -80,4 +90,6 @@ class CreateRefundAction(Action):
         parts = sender_id.split("_")
         if len(parts) > 1 and parts[-1].isdigit():
             return int(parts[-1])
+        if sender_id.isdigit():
+            return int(sender_id)
         return 1

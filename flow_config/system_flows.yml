@@ -14,13 +14,8 @@ flows:
         type: action
         action: action_response
         args:
-          mode: rephrase
+          mode: static
           text: "好的，我来帮你处理{{ context.name }}。"
-          prompt: |
-            你是一个中文教育客服助手。
-            请基于建议回复，生成一句自然友好的回复，保持原意，不要扩写。
-            建议回复：{{ current_response }}
-            改写后的回复：
         next: end
 
       - id: end

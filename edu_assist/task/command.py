@@ -44,7 +44,9 @@ class CommandProcessor:
 
     async def run(self, commands: list[dict[str, Any]], state: DialogueState) -> None:
         """执行命令列表。"""
-        for cmd_dict in commands:
+        # 先将 start_flow 排在前面，确保 active_task 已创建再 set_slots
+        sorted_commands = sorted(commands, key=lambda c: 0 if c.get("type") == "start_flow" else 1)
+        for cmd_dict in sorted_commands:
             cmd = self._parse_command(cmd_dict)
             if isinstance(cmd, StartFlowCommand):
                 if state.active_task:

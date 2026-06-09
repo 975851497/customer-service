@@ -2,11 +2,31 @@
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
 from edu_assist.infrastructure.http_client import get_http_client
+
+
+def _extract_keyword(text: str) -> str:
+    """从用户提问中提取搜索关键字（去除问句后缀和标点）。"""
+    text = text.strip()
+    # 先去除尾部标点
+    text = text.rstrip("？?!！，,。.、；;：:")
+    # 再去除常见问句后缀（按长度降序匹配，优先去掉最长的）
+    suffixes = [
+        "是什么情况", "是怎么回事", "是做什么的", "是怎样的",
+        "怎么样", "是什么", "是怎样的", "了解一下",
+        "有什么课程", "有什么", "介绍一下", "介绍",
+        "的情况",
+    ]
+    for suffix in suffixes:
+        if text.endswith(suffix):
+            text = text[:-len(suffix)]
+            break
+    return text.strip()
 
 
 @dataclass
@@ -87,11 +107,13 @@ class CourseSeriesProvider(KnowledgeProvider):
 
         # 兜底：拿用户当前输入做关键字搜索
         if not chunks and state.pending_turn and state.pending_turn.user_message.text:
-            keyword = state.pending_turn.user_message.text.strip()
+            keyword = _extract_keyword(state.pending_turn.user_message.text)
+            print(f"\n[CourseSeriesProvider] raw='{state.pending_turn.user_message.text}', keyword='{keyword}'")
             if keyword:
                 try:
                     resp = await client.get("/api/v1/series", params={"keyword": keyword})
                     data = resp.json()
+                    print(f"[CourseSeriesProvider] API status={data.get('code')}, total={data.get('data',{}).get('total', 'N/A')}")
                     if data.get("code") == 0:
                         series_list = data.get("data", {}).get("list", [])
                         if series_list:
@@ -112,7 +134,9 @@ class CourseSeriesProvider(KnowledgeProvider):
                                     f"评分：{s.get('avgScore', 0)}分{cohort_info}"
                                 )
                             chunks.append("为您找到以下课程：\n" + "\n".join(items))
-                except Exception:
+                            print(f"[CourseSeriesProvider] found {len(series_list)} series, chunks={len(chunks)}")
+                except Exception as e:
+                    print(f"[CourseSeriesProvider] error: {e}")
                     pass
 
         return chunks
@@ -145,6 +169,40 @@ class CohortProvider(KnowledgeProvider):
                     chunks.append(text)
             except Exception:
                 pass
+
+        # 兜底：拿用户输入做关键字搜索→查班次
+        if not chunks and state.pending_turn and state.pending_turn.user_message.text:
+            keyword = _extract_keyword(state.pending_turn.user_message.text)
+            print(f"\n[CohortProvider] raw='{state.pending_turn.user_message.text}', keyword='{keyword}'")
+            if keyword:
+                try:
+                    # 先搜课程系列
+                    resp = await client.get("/api/v1/series", params={"keyword": keyword})
+                    data = resp.json()
+                    print(f"[CohortProvider] series API status={data.get('code')}, total={data.get('data',{}).get('total', 'N/A')}")
+                    if data.get("code") == 0:
+                        series_list = data.get("data", {}).get("list", [])
+                        for s in series_list[:3]:
+                            sid = s["seriesId"]
+                            cohorts_resp = await client.get(f"/api/v1/series/{sid}/cohorts")
+                            cohorts_data = cohorts_resp.json()
+                            if cohorts_data.get("code") == 0 and cohorts_data.get("data"):
+                                for c in cohorts_data["data"][:3]:
+                                    text = (
+                                        f"班次名称：{c.get('cohortName', '')}\n"
+                                        f"所属课程：{c.get('seriesName', '')}\n"
+                                        f"授课方式：{c.get('deliveryModeCode', '')}\n"
+                                        f"价格：{c.get('salePrice', '待定')}元\n"
+                                        f"开课日期：{c.get('startDate', '')}\n"
+                                        f"结课日期：{c.get('endDate', '待定')}\n"
+                                        f"班主任：{c.get('headTeacherName', '待定')}\n"
+                                        f"已报名：{c.get('currentStudentCount', 0)}人"
+                                    )
+                                    chunks.append(text)
+                            print(f"[CohortProvider] series '{s.get('seriesName')}' cohorts={len(cohorts_data.get('data',[])) if cohorts_data.get('code')==0 else 0}")
+                except Exception as e:
+                    print(f"[CohortProvider] error: {e}")
+                    pass
 
         return chunks
 
@@ -189,6 +247,8 @@ class OrderProvider(KnowledgeProvider):
         parts = sender_id.split("_")
         if len(parts) > 1 and parts[-1].isdigit():
             return int(parts[-1])
+        if sender_id.isdigit():
+            return int(sender_id)
         return 1
 
 
@@ -253,6 +313,8 @@ class ProgressProvider(KnowledgeProvider):
         parts = sender_id.split("_")
         if len(parts) > 1 and parts[-1].isdigit():
             return int(parts[-1])
+        if sender_id.isdigit():
+            return int(sender_id)
         return 1
 
 

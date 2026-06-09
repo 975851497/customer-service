@@ -104,9 +104,18 @@ class DialogueEngine:
         # 1. Turn Planning
         plan = await self._turn_planner.predict(state, text)
 
+        # 调试日志
+        plan_dict = plan.model_dump(exclude_none=True)
+        print(f"\n=== TURN PLAN ===")
+        print(f"User: {text}")
+        import json
+        print(json.dumps(plan_dict, ensure_ascii=False))
+        print(f"================\n")
+
         # 2. 验证
         reason = self._turn_validator.validate(plan, has_focused_object=state.focused_object is not None)
         if reason:
+            print(f"=== CLARIFY: {reason} ===")
             return await self._clarify_responder.respond(reason)
 
         # 3. 按赛道分发

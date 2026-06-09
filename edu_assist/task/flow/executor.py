@@ -7,6 +7,7 @@ from typing import Any
 from edu_assist.domain.state import (
     DialogueState,
     SYSTEM_COLLECT_INFORMATION,
+    SystemContext,
     TaskContext,
 )
 from edu_assist.domain.messages import BotMessage
@@ -41,14 +42,21 @@ class FlowExecutor:
                 return step
         return None
 
-    async def run_task(self, state: DialogueState) -> list[BotMessage]:
+    async def run_task(self, state: DialogueState, task: Any | None = None) -> list[BotMessage]:
         """执行当前任务（active_task 或 active_system_task）。"""
-        task = state.active_task or state.active_system_task
         if task is None:
-            return []
+            task = state.active_task or state.active_system_task
+            if task is None:
+                return []
+        else:
+            # 确保 state 的引用与 task 同步
+            if task is state.active_system_task:
+                pass
+            elif task is not state.active_task:
+                return []
 
         flow_id = task.flow_id
-        is_system = state.active_system_task is not None
+        is_system = isinstance(task, SystemContext)
         flow = self._get_flow(flow_id, is_system=is_system)
 
         if flow is None:
@@ -67,7 +75,8 @@ class FlowExecutor:
             next_links = parse_next(step.get("next", []))
 
             if step_type == "start":
-                task.step_id = evaluate_links(next_links, task.slots) or ""
+                task_slots = getattr(task, "slots", {})
+                task.step_id = evaluate_links(next_links, task_slots) or ""
                 continue
 
             elif step_type == "end":
@@ -145,11 +154,14 @@ class FlowExecutor:
 
                 # 渲染 args 中的 Jinja2 模板
                 rendered_args: dict[str, Any] = {}
+                template_vars = {"slots": getattr(task, "slots", {})}
+                if hasattr(task, "context"):
+                    template_vars["context"] = task.context
                 for key, value in args.items():
                     if isinstance(value, str) and "{{" in value:
                         from jinja2 import Template
                         try:
-                            rendered_args[key] = Template(value).render(slots=task.slots)
+                            rendered_args[key] = Template(value).render(**template_vars)
                         except Exception:
                             rendered_args[key] = value
                     else:
@@ -158,9 +170,10 @@ class FlowExecutor:
                 if action_name == "action_listen":
                     break
 
-                next_step = evaluate_links(next_links, task.slots)
+                task_slots = getattr(task, "slots", {})
+                next_step = evaluate_links(next_links, task_slots)
                 action_call = ActionCall(action_name, rendered_args, next_step or "")
-                result = await self._action_runner.run(action_call, state, task.slots)
+                result = await self._action_runner.run(action_call, state, task_slots)
 
                 if result.messages:
                     messages.extend(result.messages)

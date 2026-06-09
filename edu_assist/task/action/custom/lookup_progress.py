@@ -76,4 +76,6 @@ class LookupProgressAction(Action):
         parts = sender_id.split("_")
         if len(parts) > 1 and parts[-1].isdigit():
             return int(parts[-1])
+        if sender_id.isdigit():
+            return int(sender_id)
         return 1
