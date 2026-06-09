@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import uuid
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -74,13 +73,9 @@ async def chat(
 @router.post("/stream")
 async def chat_stream(
     request: ChatRequest,
-    db: AsyncSession = Depends(get_db),
+    service: DialogueService = Depends(_get_dialogue_service),
 ):
-    """发送对话消息（SSE 流式响应）。"""
-    engine = get_engine()
-    repository = DialogueStateRepository(db)
-    service = DialogueService(engine, repository)
-
+    """发送对话消息（SSE 流式响应）- 真实流式输出。"""
     message_object = None
     if request.object:
         message_object = MessageObject(
@@ -100,36 +95,12 @@ async def chat_stream(
 
     async def event_stream():
         try:
-            result = await service.process_message(request.sender_id, user_message)
-            messages = result.get("messages", [])
-
-            for msg in messages:
-                text = msg.get("text", "") or ""
-                response_id = result.get("message_id", str(uuid.uuid4()))
-
-                # 先发送消息头
-                header = json.dumps({
-                    "type": "header",
-                    "sender_id": result["sender_id"],
-                    "message_id": response_id,
-                }, ensure_ascii=False)
-                yield f"data: {header}\n\n"
-
-                # 逐字流式发送文本
-                for i in range(0, len(text), 2):
-                    chunk = text[i:i + 2]
-                    payload = json.dumps({"type": "chunk", "text": chunk}, ensure_ascii=False)
-                    yield f"data: {payload}\n\n"
-
-                # 发送消息结束标记
-                payload = json.dumps({"type": "done", "text": ""}, ensure_ascii=False)
-                yield f"data: {payload}\n\n"
-
+            async for event in service.process_message_stream(request.sender_id, user_message):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         except Exception as e:
             error = json.dumps({"type": "error", "text": f"处理失败: {str(e)}"}, ensure_ascii=False)
             yield f"data: {error}\n\n"
 
-        # 流结束
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(

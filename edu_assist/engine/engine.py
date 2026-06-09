@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import uuid
+from collections.abc import AsyncIterator
 from datetime import datetime
+from typing import Any
 
 from edu_assist.domain.messages import BotMessage, MessageType, ProcessResult, UserMessage
 from edu_assist.domain.state import DialogueState, SYSTEM_COLLECT_INFORMATION
@@ -59,6 +63,94 @@ class DialogueEngine:
             messages=bot_messages,
         )
 
+    async def process_message_stream(self, state: DialogueState, user_message: UserMessage) -> AsyncIterator[dict[str, Any]]:
+        """流式处理用户消息，逐块产出事件。
+
+        产出的事件类型：
+        - {"type": "header", "sender_id": str, "message_id": str}
+        - {"type": "chunk", "text": str}
+        - {"type": "done", "text": ""}
+        """
+        # 1. 会话管理
+        self._prepare_session(state)
+
+        # 2. 开始新回合
+        state.begin_turn(user_message)
+
+        # 产出消息头
+        message_id = str(uuid.uuid4())
+        yield {"type": "header", "sender_id": state.sender_id, "message_id": message_id}
+
+        bot_messages: list[BotMessage] = []
+        full_text = ""
+
+        # 3. 消息类型判断
+        if user_message.type == MessageType.OBJECT and user_message.object:
+            bot_messages = await self._handle_object_message(state, user_message)
+            for msg in bot_messages:
+                if msg.text:
+                    yield {"type": "chunk", "text": msg.text}
+                    full_text += msg.text
+
+        else:
+            text = user_message.text or ""
+
+            # 3.1 Turn Planning
+            plan = await self._turn_planner.predict(state, text)
+
+            # 调试日志
+            plan_dict = plan.model_dump(exclude_none=True)
+            print(f"\n=== TURN PLAN ===")
+            print(f"User: {text}")
+            print(json.dumps(plan_dict, ensure_ascii=False))
+            print(f"================\n")
+
+            # 3.2 验证
+            reason = self._turn_validator.validate(plan, has_focused_object=state.focused_object is not None)
+            if reason:
+                print(f"=== CLARIFY: {reason} ===")
+                async for chunk in self._clarify_responder.respond_stream(reason):
+                    yield {"type": "chunk", "text": chunk}
+                    full_text += chunk
+                bot_messages = [BotMessage(text=full_text)]
+
+            elif plan.task:
+                # 任务赛道：非流式执行，然后逐条产出文本
+                bot_messages = await self._task_handler.handle(plan.task.commands, state)
+                for msg in bot_messages:
+                    if msg.text:
+                        yield {"type": "chunk", "text": msg.text}
+                        full_text += msg.text
+
+            elif plan.knowledge:
+                # 知识赛道：流式产出 LLM 回复
+                async for chunk in self._knowledge_handler.handle_stream(plan.knowledge.intents, state, text):
+                    yield {"type": "chunk", "text": chunk}
+                    full_text += chunk
+                bot_messages = [BotMessage(text=full_text)]
+
+            elif plan.chitchat:
+                # 闲聊赛道：流式产出 LLM 回复
+                async for chunk in self._chitchat_handler.handle_stream(state, text):
+                    yield {"type": "chunk", "text": chunk}
+                    full_text += chunk
+                bot_messages = [BotMessage(text=full_text)]
+
+            else:
+                # 兜底：闲聊
+                async for chunk in self._chitchat_handler.handle_stream(state, text):
+                    yield {"type": "chunk", "text": chunk}
+                    full_text += chunk
+                bot_messages = [BotMessage(text=full_text)]
+
+        # 4. 提交回合（保存对话历史）
+        if state.pending_turn:
+            state.pending_turn.bot_messages = bot_messages
+        state.commit_pending_turn()
+
+        # 产出完成事件
+        yield {"type": "done", "text": ""}
+
     def _prepare_session(self, state: DialogueState) -> None:
         """会话管理。"""
         now = datetime.now()
@@ -110,7 +202,6 @@ class DialogueEngine:
         plan_dict = plan.model_dump(exclude_none=True)
         print(f"\n=== TURN PLAN ===")
         print(f"User: {text}")
-        import json
         print(json.dumps(plan_dict, ensure_ascii=False))
         print(f"================\n")
 

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from typing import Any
+
 from edu_assist.domain.messages import UserMessage
 from edu_assist.domain.state import DialogueState
 from edu_assist.engine.engine import DialogueEngine
@@ -27,6 +30,17 @@ class DialogueService:
         await self._repository.save_state(state)
 
         return result.model_dump()
+
+    async def process_message_stream(self, sender_id: str, user_message: UserMessage) -> AsyncIterator[dict[str, Any]]:
+        """流式处理消息，逐块产出事件。"""
+        state = await self._repository.load_state(sender_id)
+
+        try:
+            async for event in self._engine.process_message_stream(state, user_message):
+                yield event
+        finally:
+            # 流结束（成功或异常）都保存状态
+            await self._repository.save_state(state)
 
     async def get_history(self, sender_id: str) -> dict:
         """获取聊天历史。"""

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+
+from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 
 from edu_assist.conf.config import settings
@@ -28,3 +31,19 @@ async def llm_ainvoke(prompt: str) -> str:
     llm = get_llm()
     result = await llm.ainvoke(prompt)
     return result.content
+
+
+async def llm_astream(prompt: str) -> AsyncIterator[str]:
+    """流式调用 LLM，逐块产出 token。"""
+    llm = get_llm()
+    async for chunk in llm.astream(prompt):
+        if chunk.content:
+            yield chunk.content
+
+
+async def llm_astream_messages(messages: list[BaseMessage]) -> AsyncIterator[str]:
+    """流式调用 LLM（messages 格式），逐块产出 token。"""
+    llm = get_llm()
+    async for chunk in llm.astream(messages):
+        if chunk.content:
+            yield chunk.content

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+
 from edu_assist.domain.messages import BotMessage
-from edu_assist.infrastructure.llm import llm_ainvoke
+from edu_assist.infrastructure.llm import llm_ainvoke, llm_astream
 from edu_assist.prompts.prompt_loader import load_prompt
 from edu_assist.plan.validator import ClarifyReason
 
@@ -31,3 +33,14 @@ class ClarifyResponder:
             return [BotMessage(text=result)]
         except Exception:
             return [BotMessage(text=message)]
+
+    async def respond_stream(self, reason: ClarifyReason) -> AsyncIterator[str]:
+        """流式生成澄清回复，逐 token 产出文本。"""
+        message = CLARIFY_MESSAGES.get(reason, "抱歉，我没有完全理解你的意思，请再详细描述一下。")
+        try:
+            template = load_prompt("clarify_respond.jinja2")
+            prompt = template.render(clarify_message=message)
+            async for chunk in llm_astream(prompt):
+                yield chunk
+        except Exception:
+            yield message
