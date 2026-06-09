@@ -9,7 +9,15 @@ from edu_assist.clarify.handler import ClarifyResponder
 from edu_assist.chitchat.handler import ChitchatHandler
 from edu_assist.engine.engine import DialogueEngine
 from edu_assist.knowledge.handler import KnowledgeHandler
-from edu_assist.knowledge.provider import KnowledgeProvider, KnowledgeProviderRegistry
+from edu_assist.knowledge.provider import (
+    CohortProvider,
+    CourseSeriesProvider,
+    FAQProvider,
+    KnowledgeProvider,
+    KnowledgeProviderRegistry,
+    OrderProvider,
+    ProgressProvider,
+)
 from edu_assist.plan.planner import TurnPlanner
 from edu_assist.plan.validator import TurnPlanValidator
 from edu_assist.task.action.builder import register_builtin_actions, register_custom_actions
@@ -49,6 +57,13 @@ def build_dialogue_engine() -> DialogueEngine:
 
     # 知识模块
     provider_registry = KnowledgeProviderRegistry()
+
+    # 注册知识提供者实例
+    provider_registry.register_provider(CourseSeriesProvider())
+    provider_registry.register_provider(CohortProvider())
+    provider_registry.register_provider(OrderProvider())
+    provider_registry.register_provider(ProgressProvider())
+    provider_registry.register_provider(FAQProvider())
 
     # 注册教育知识意图
     provider_registry.register_intent("course_info", "用户想了解课程系列的信息，如课程内容、适用人群、价格等", ["api.course_series", "api.cohort"])

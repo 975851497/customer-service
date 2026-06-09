@@ -6,7 +6,7 @@ from typing import Any
 
 from edu_assist.task.action.base import Action, ActionResult
 from edu_assist.domain.messages import BotMessage
-from edu_assist.task.action.custom.shared import create_service_ticket
+from edu_assist.task.action.custom.shared import create_service_ticket, fetch_my_orders, fetch_student_profile
 
 
 TICKET_TYPE_MAP = {
@@ -34,19 +34,32 @@ class CreateTicketAction(Action):
         ticket_type_name = TICKET_TYPE_MAP.get(ticket_type, ticket_type)
 
         try:
-            order_item_id = int(order_number) if order_number and order_number.isdigit() else 0
+            # 1. 获取学员 studentId
+            profile = await fetch_student_profile(user_id)
+            student_id = profile.get("studentId") if profile else 1
+
+            # 2. 查订单获取 orderItemId
+            order_item_id = None
+            if order_number:
+                orders = await fetch_my_orders(user_id)
+                for order in orders:
+                    if order_number in order.get("orderNo", ""):
+                        items = order.get("orderItems", [])
+                        if items:
+                            order_item_id = items[0].get("orderItemId")
+                        break
+
             result = await create_service_ticket(
                 ticket_type=ticket_type,
                 title=f"【{ticket_type_name}】{description[:50]}",
                 content=description,
-                student_id=1,  # 简化处理
-                order_item_id=order_item_id if order_item_id > 0 else 1,
+                student_id=student_id,
+                order_item_id=order_item_id or 1,
                 user_id=user_id,
             )
 
             if result:
                 ticket_no = result.get("ticketNo", "")
-                ticket_id = result.get("ticketId", "")
                 msg = (
                     f"工单已提交成功！\n"
                     f"工单编号：{ticket_no}\n"

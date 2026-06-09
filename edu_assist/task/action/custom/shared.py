@@ -176,3 +176,17 @@ async def fetch_my_orders(user_id: int, status: str | None = None) -> list[dict[
         return []
     except Exception:
         return []
+
+
+async def fetch_student_profile(user_id: int) -> dict[str, Any] | None:
+    """获取当前用户的学员档案信息。"""
+    client = get_http_client()
+    try:
+        resp = await client.get(
+            "/api/v1/me/student-profile",
+            headers={"X-User-Id": str(user_id)},
+        )
+        data = resp.json()
+        return data.get("data") if data.get("code") == 0 else None
+    except Exception:
+        return None

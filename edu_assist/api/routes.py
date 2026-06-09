@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import json
+import uuid
+
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from edu_assist.api.schemas import (
-    ChatRequest,
-    ChatResponse,
     ChatBotMessage,
     ChatObject,
-    HistoryResponse,
+    ChatRequest,
+    ChatResponse,
     HistoryMessage,
+    HistoryResponse,
     SessionStateResponse,
 )
 from edu_assist.domain.messages import MessageObject, MessageType, UserMessage
@@ -64,6 +68,78 @@ async def chat(
             )
             for msg in result.get("messages", [])
         ],
+    )
+
+
+@router.post("/stream")
+async def chat_stream(
+    request: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """发送对话消息（SSE 流式响应）。"""
+    engine = get_engine()
+    repository = DialogueStateRepository(db)
+    service = DialogueService(engine, repository)
+
+    message_object = None
+    if request.object:
+        message_object = MessageObject(
+            type=request.object.type,
+            id=request.object.id,
+            title=request.object.title,
+            attributes=request.object.attributes,
+        )
+
+    user_message = UserMessage(
+        sender_id=request.sender_id,
+        message_id=request.message_id or "",
+        type=MessageType.OBJECT if request.object else MessageType.TEXT,
+        text=request.text,
+        object=message_object,
+    )
+
+    async def event_stream():
+        try:
+            result = await service.process_message(request.sender_id, user_message)
+            messages = result.get("messages", [])
+
+            for msg in messages:
+                text = msg.get("text", "") or ""
+                response_id = result.get("message_id", str(uuid.uuid4()))
+
+                # 先发送消息头
+                header = json.dumps({
+                    "type": "header",
+                    "sender_id": result["sender_id"],
+                    "message_id": response_id,
+                }, ensure_ascii=False)
+                yield f"data: {header}\n\n"
+
+                # 逐字流式发送文本
+                for i in range(0, len(text), 2):
+                    chunk = text[i:i + 2]
+                    payload = json.dumps({"type": "chunk", "text": chunk}, ensure_ascii=False)
+                    yield f"data: {payload}\n\n"
+
+                # 发送消息结束标记
+                payload = json.dumps({"type": "done", "text": ""}, ensure_ascii=False)
+                yield f"data: {payload}\n\n"
+
+        except Exception as e:
+            error = json.dumps({"type": "error", "text": f"处理失败: {str(e)}"}, ensure_ascii=False)
+            yield f"data: {error}\n\n"
+
+        # 流结束
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

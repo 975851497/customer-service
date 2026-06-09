@@ -1,0 +1,56 @@
+# 教育智能客服系统 - Docker Compose 编排
+#
+# 依赖：
+#   - edu-data 服务（需提前部署，地址通过 EDU_API_BASE_URL 配置）
+#   - LLM API Key（通过 .env 配置）
+#
+# 启动方式：
+#   docker compose up -d
+#   或仅启动依赖的 MySQL：
+#   docker compose up -d mysql
+#   然后在宿主机调试运行：uv run python main.py
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: edu-assist-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: edu_assist
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: edu-assist-api
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # LLM 配置
+      LLM_API_KEY: ${LLM_API_KEY:-your_api_key_here}
+      LLM_MODEL: ${LLM_MODEL:-qwen-plus}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      # 教育数据 API 地址（虚拟机中 edu-data 服务的内网地址）
+      EDU_API_BASE_URL: ${EDU_API_BASE_URL:-http://host.docker.internal:8000}
+      # 数据库连接
+      DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/edu_assist?charset=utf8mb4
+      # 服务器配置
+      APP_HOST: 0.0.0.0
+      APP_PORT: 18082
+    ports:
+      - "18082:18082"
+
+volumes:
+  mysql-data:

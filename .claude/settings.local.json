@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv run python -c ':*)",
+      "Bash(find edu_assist -name \"__init__.py\" -exec echo \"=== {} ===\" \\\\; -exec cat {} \\\\;)",
+      "Bash(python -c ':*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

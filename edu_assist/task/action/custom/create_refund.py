@@ -6,7 +6,7 @@ from typing import Any
 
 from edu_assist.task.action.base import Action, ActionResult
 from edu_assist.domain.messages import BotMessage
-from edu_assist.task.action.custom.shared import (create_refund_request)
+from edu_assist.task.action.custom.shared import create_refund_request, fetch_my_orders
 
 
 REFUND_TYPE_MAP = {
@@ -33,24 +33,38 @@ class CreateRefundAction(Action):
 
         user_id = self._extract_user_id(state.sender_id)
 
-        # 简化处理：使用订单号作为 order_item_id（实际应该查订单获取）
         try:
-            order_item_id = int(order_number) if order_number.isdigit() else 0
+            # 先查用户订单列表，找到匹配的 orderItemId
+            orders = await fetch_my_orders(user_id)
+            order_item_id = None
+            matched_order = None
+
+            for order in orders:
+                if order_number in order.get("orderNo", ""):
+                    matched_order = order
+                    items = order.get("orderItems", [])
+                    if items:
+                        order_item_id = items[0].get("orderItemId")
+                    break
+
+            if not order_item_id:
+                return ActionResult(
+                    messages=[BotMessage(text=f"未找到订单 {order_number}，请确认订单号是否正确。")]
+                )
+
             result = await create_refund_request(
                 order_item_id=order_item_id,
                 refund_type=refund_type,
                 refund_reason=reason,
-                apply_amount=0,  # 简化处理
+                apply_amount=matched_order.get("payableAmount", 0) if matched_order else 0,
                 user_id=user_id,
             )
 
             if result:
-                refund_no = result.get("refundNo", "")
-                status = result.get("refundStatusCode", "pending")
                 msg = (
                     f"退款申请已提交！\n"
-                    f"退款编号：{refund_no}\n"
-                    f"当前状态：{status}\n"
+                    f"退款编号：{result.get('refundRequestId', '')}\n"
+                    f"退款类型：{REFUND_TYPE_MAP.get(refund_type, refund_type)}\n"
                     f"退款原因：{reason}\n\n"
                     f"我们会尽快处理你的退款申请，请耐心等待。"
                 )

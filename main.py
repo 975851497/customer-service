@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from edu_assist.api.routes import router as chat_router
 from edu_assist.conf.config import settings
@@ -37,6 +39,12 @@ app.add_middleware(
 )
 
 app.include_router(chat_router)
+
+# 静态文件（调试页面）
+try:
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+except Exception:
+    pass
 
 
 @app.get("/health")
