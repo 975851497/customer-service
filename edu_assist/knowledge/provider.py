@@ -29,6 +29,20 @@ def _extract_keyword(text: str) -> str:
     return text.strip()
 
 
+def _split_keywords(text: str) -> list[str]:
+    """将关键字拆分为多个子关键字，用于渐进式搜索。
+    例如 "Python 全栈课程" → ["Python 全栈课程", "Python 全栈", "全栈课程", "Python", "全栈"]
+    """
+    parts = text.split()
+    results = [text]
+    # 去掉尾部词
+    words = text.split()
+    for i in range(len(words) - 1, 0, -1):
+        results.append("".join(words[:i]))
+        results.append("".join(words[i:]))
+    return results
+
+
 @dataclass
 class KnowledgeChunk:
     """知识块。"""
@@ -135,6 +149,35 @@ class CourseSeriesProvider(KnowledgeProvider):
                                 )
                             chunks.append("为您找到以下课程：\n" + "\n".join(items))
                             print(f"[CourseSeriesProvider] found {len(series_list)} series, chunks={len(chunks)}")
+                        else:
+                            # 主关键词无结果，尝试拆解搜索
+                            print(f"[CourseSeriesProvider] no results for '{keyword}', trying split keywords...")
+                            for sub_keyword in _split_keywords(keyword):
+                                if sub_keyword == keyword:
+                                    continue
+                                sub_resp = await client.get("/api/v1/series", params={"keyword": sub_keyword})
+                                sub_data = sub_resp.json()
+                                if sub_data.get("code") == 0:
+                                    sub_list = sub_data.get("data", {}).get("list", [])
+                                    if sub_list:
+                                        items = []
+                                        for s in sub_list[:5]:
+                                            cohorts_resp = await client.get(f"/api/v1/series/{s['seriesId']}/cohorts")
+                                            cohorts_data = cohorts_resp.json()
+                                            cohort_info = ""
+                                            if cohorts_data.get("code") == 0 and cohorts_data.get("data"):
+                                                cohort = cohorts_data["data"][0] if cohorts_data["data"] else {}
+                                                price = cohort.get("salePrice", "待定")
+                                                start = cohort.get("startDate", "")
+                                                teacher = cohort.get("headTeacherName", "")
+                                                cohort_info = f"（价格：{price}元，开课：{start}，班主任：{teacher}）"
+                                            items.append(
+                                                f"  - {s.get('seriesName', '')}：{s.get('description', '')} "
+                                                f"评分：{s.get('avgScore', 0)}分{cohort_info}"
+                                            )
+                                        chunks.append(f"未找到「{keyword}」，但为您找到以下相关课程：\n" + "\n".join(items))
+                                        print(f"[CourseSeriesProvider] split keyword '{sub_keyword}' found {len(sub_list)} series")
+                                        break
                 except Exception as e:
                     print(f"[CourseSeriesProvider] error: {e}")
                     pass

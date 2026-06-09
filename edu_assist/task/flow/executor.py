@@ -115,14 +115,12 @@ class FlowExecutor:
                                 continue
                         except Exception:
                             pass
-                    # slot 有值，继续
-                    next_step = evaluate_links(next_links, task.slots)
 
                     # 检查是否有占位 action
                     action_name = step.get("action", "")
                     if action_name and action_name != "action_listen":
                         args = step.get("args", {})
-                        action_call = ActionCall(action_name, args, next_step or "")
+                        action_call = ActionCall(action_name, args, "")
                         action_key = f"{task.step_id}_{action_name}"
                         if action_key not in processed_actions:
                             processed_actions.add(action_key)
@@ -131,6 +129,10 @@ class FlowExecutor:
                                 messages.extend(result.messages)
                             if result.slot_updates:
                                 state.set_slots(result.slot_updates)
+
+                    # 在 slot 更新后重新评估跳转目标
+                    task_slots = getattr(task, "slots", {})
+                    next_step = evaluate_links(next_links, task_slots)
                     task.step_id = next_step or ""
                     continue
 
@@ -171,8 +173,7 @@ class FlowExecutor:
                     break
 
                 task_slots = getattr(task, "slots", {})
-                next_step = evaluate_links(next_links, task_slots)
-                action_call = ActionCall(action_name, rendered_args, next_step or "")
+                action_call = ActionCall(action_name, rendered_args, "")
                 result = await self._action_runner.run(action_call, state, task_slots)
 
                 if result.messages:
@@ -180,6 +181,9 @@ class FlowExecutor:
                 if result.slot_updates:
                     state.set_slots(result.slot_updates)
 
+                # 在 slot 更新后重新评估跳转目标
+                task_slots = getattr(task, "slots", {})
+                next_step = evaluate_links(next_links, task_slots)
                 task.step_id = next_step or ""
                 continue
 

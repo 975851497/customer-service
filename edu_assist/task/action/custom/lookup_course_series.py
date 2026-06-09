@@ -53,7 +53,18 @@ class LookupCourseSeriesAction(Action):
                     items.append(f"  - {s.get('seriesName', '')}（评分：{s.get('avgScore', 0)}）")
                 msg = f"为您找到以下课程：\n" + "\n".join(items) + "\n\n请输入课程编号或名称查看详细信息。"
                 return ActionResult(messages=[BotMessage(text=msg)])
+            # 尝试拆解关键词再搜索
+            for part in series_name.split():
+                part_list = await fetch_series_list(keyword=part)
+                if part_list:
+                    items = []
+                    for s in part_list[:5]:
+                        items.append(f"  - {s.get('seriesName', '')}（评分：{s.get('avgScore', 0)}）")
+                    msg = f"未找到「{series_name}」，但为您找到以下相关课程：\n" + "\n".join(items)
+                    return ActionResult(messages=[BotMessage(text=msg)])
 
+        # 未找到时清除 slot，让流程正常结束
         return ActionResult(
-            messages=[BotMessage(text="暂未找到相关课程信息，请尝试其他关键词。")]
+            messages=[BotMessage(text="暂未找到相关课程信息，请尝试其他关键词。")],
+            slot_updates={"series_name": None},
         )
