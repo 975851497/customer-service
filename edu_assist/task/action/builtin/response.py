@@ -5,10 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from jinja2 import Template
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from edu_assist.task.action.base import Action, ActionResult
 from edu_assist.domain.messages import BotMessage
-from edu_assist.infrastructure.llm import llm_ainvoke
+from edu_assist.infrastructure.llm import get_llm
 
 
 class ActionResponse(Action):
@@ -24,22 +25,16 @@ class ActionResponse(Action):
             return ActionResult(messages=[BotMessage(text=text)])
 
         elif mode == "rephrase":
-            # 重述模式：先渲染建议文本，再用 LLM 改写
             current_response = text
             if prompt_template:
-                history_text = self._build_history(state)
-                user_msg = ""
-                if state.pending_turn and state.pending_turn.user_message:
-                    user_msg = state.pending_turn.user_message.text or ""
-
-                rendered = Template(prompt_template).render(
-                    history=history_text,
-                    user_message=user_msg,
-                    current_response=current_response,
-                )
+                system_prompt = Template(prompt_template).render()
+                llm = get_llm()
                 try:
-                    llm_result = await llm_ainvoke(rendered)
-                    return ActionResult(messages=[BotMessage(text=llm_result)])
+                    result = await llm.ainvoke([
+                        SystemMessage(content=system_prompt),
+                        HumanMessage(content=current_response),
+                    ])
+                    return ActionResult(messages=[BotMessage(text=result.content)])
                 except Exception:
                     return ActionResult(messages=[BotMessage(text=current_response)])
             return ActionResult(messages=[BotMessage(text=current_response)])
