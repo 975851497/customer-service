@@ -49,7 +49,9 @@ class DialogueEngine:
         else:
             bot_messages = await self._handle_text_message(state, user_message)
 
-        # 4. 提交回合
+        # 4. 提交回合（保存对话历史）
+        if state.pending_turn:
+            state.pending_turn.bot_messages = bot_messages
         state.commit_pending_turn()
 
         return ProcessResult(
